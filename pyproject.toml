@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "riff"
+version = "0.1.0"
+description = "YouTube Music from your terminal"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "ytmusicapi>=1.0",
+    "yt-dlp>=2024.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+riff = "riff.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
