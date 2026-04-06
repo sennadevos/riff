@@ -56,15 +56,24 @@ def _build_opts(
 
     fmt_opts = _FORMAT_MAP.get(fmt, _FORMAT_MAP["best"])
 
+    postprocessors = [*fmt_opts["postprocessors"], {"key": "FFmpegMetadata"}]
+
+    try:
+        import mutagen  # noqa: F401
+        postprocessors.append({
+            "key": "FFmpegThumbnailsConvertor",
+            "format": "jpg",
+        })
+        postprocessors.append({"key": "EmbedThumbnail"})
+        write_thumb = True
+    except ImportError:
+        write_thumb = False
+
     opts: dict[str, Any] = {
         "format": fmt_opts["format"],
         "outtmpl": str(output_dir / _OUTPUT_TEMPLATE),
-        "postprocessors": [
-            *fmt_opts["postprocessors"],
-            {"key": "EmbedThumbnail"},
-            {"key": "FFmpegMetadata"},
-        ],
-        "writethumbnail": True,
+        "postprocessors": postprocessors,
+        "writethumbnail": write_thumb,
         "quiet": True,
         "no_warnings": True,
     }

@@ -9,10 +9,15 @@ import click
 from riff import display, download, search
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(package_name="riff")
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """YouTube Music from your terminal."""
+    if ctx.invoked_subcommand is None:
+        from riff.tui.app import RiffApp
+
+        RiffApp().run()
 
 
 @main.command()
@@ -25,7 +30,9 @@ def main() -> None:
     help="Type of result to search for.",
 )
 @click.option("-l", "--limit", default=10, show_default=True, help="Maximum number of results.")
-def search_cmd(query: tuple[str, ...], result_type: str, limit: int) -> None:
+@click.option("--url", is_flag=True, help="Output YouTube Music URLs only, one per line.")
+@click.option("--id", "id_only", is_flag=True, help="Output video/browse/playlist IDs only, one per line.")
+def search_cmd(query: tuple[str, ...], result_type: str, limit: int, url: bool, id_only: bool) -> None:
     """Search YouTube Music."""
     query_str = " ".join(query)
     try:
@@ -34,7 +41,23 @@ def search_cmd(query: tuple[str, ...], result_type: str, limit: int) -> None:
         display.print_error(str(e))
         raise SystemExit(1)
 
-    display.display_search_results(results, result_type=result_type)
+    if url:
+        for r in results:
+            vid = r.get("videoId") or r.get("playlistId") or r.get("browseId", "")
+            if vid:
+                if r.get("videoId"):
+                    click.echo(f"https://music.youtube.com/watch?v={vid}")
+                elif r.get("playlistId"):
+                    click.echo(f"https://music.youtube.com/playlist?list={vid}")
+                else:
+                    click.echo(f"https://music.youtube.com/browse/{vid}")
+    elif id_only:
+        for r in results:
+            vid = r.get("videoId") or r.get("playlistId") or r.get("browseId", "")
+            if vid:
+                click.echo(vid)
+    else:
+        display.display_search_results(results, result_type=result_type)
 
 
 # Register with the name "search" (can't use it as a Python identifier directly)
@@ -81,22 +104,24 @@ def download_cmd(urls: tuple[str, ...], output_dir: str, fmt: str) -> None:
             total = progress.tasks[task_id].total or 0
             progress.update(task_id, completed=total)
 
+    failed = []
     with progress:
         for url in urls:
             try:
-                result = download.download_audio(
+                download.download_audio(
                     url,
                     output_dir=output_dir,
                     fmt=fmt,
                     progress_callback=progress_hook,
                 )
             except Exception as e:
+                failed.append(url)
                 display.print_error(f"Failed to download {url}: {e}")
                 continue
 
-    for url in urls:
-        display.print_success(f"Downloaded to {Path(output_dir).expanduser().resolve()}")
-        break  # Only print output dir once
+    succeeded = len(urls) - len(failed)
+    if succeeded:
+        display.print_success(f"Downloaded {succeeded} track(s) to {Path(output_dir).expanduser().resolve()}")
 
 
 @main.command(name="download", hidden=True)

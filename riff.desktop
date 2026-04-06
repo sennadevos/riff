@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=riff
+Comment=YouTube Music from your terminal
+Exec=kitty --class riff -e riff
+Icon=audio-headphones
+Terminal=false
+Type=Application
+Categories=Audio;Music;
+Keywords=youtube;music;download;
+StartupWMClass=riff

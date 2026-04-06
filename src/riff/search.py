@@ -113,7 +113,7 @@ def search(query: str, result_type: str = "song", limit: int = 10) -> list[dict[
     yt_filter = _FILTERS.get(result_type, "songs")
     extractor = _EXTRACTORS.get(result_type, _extract_song)
     results = _get_client().search(query, filter=yt_filter, limit=limit)
-    return [extractor(r) for r in results]
+    return [extractor(r) for r in results][:limit]
 
 
 def get_song_info(video_id: str) -> dict[str, Any]:

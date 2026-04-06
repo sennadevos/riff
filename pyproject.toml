@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "riff"
-version = "0.1.0"
+version = "0.2.0"
 description = "YouTube Music from your terminal"
 requires-python = ">=3.10"
 dependencies = [
@@ -12,6 +12,9 @@ dependencies = [
     "ytmusicapi>=1.0",
     "yt-dlp>=2024.0",
     "rich>=13.0",
+    "mutagen>=1.47",
+    "urwid>=2.6",
+    "pillow>=10.0",
 ]
 
 [project.scripts]
