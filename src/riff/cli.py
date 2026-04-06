@@ -129,7 +129,7 @@ def download_cmd(urls: tuple[str, ...], output_dir: str, fmt: str) -> None:
 @click.option("-o", "--output-dir", default="~/Music", show_default=True)
 @click.option("-f", "--format", "fmt", type=click.Choice(["best", "mp3", "flac", "opus"]), default="best")
 @click.pass_context
-def download_alias(ctx: click.Context, **kwargs) -> None:  # type: ignore[no-untyped-def]
+def download_alias(ctx: click.Context, **kwargs: str | tuple[str, ...]) -> None:
     """Alias for dl."""
     ctx.invoke(download_cmd, **kwargs)
 

@@ -19,8 +19,6 @@ cli.py  (Click command group -- entry point)
   +---> download.py (yt-dlp -- audio downloads)
   |       |
   +---> display.py  (Rich -- CLI terminal output formatting)
-  |
-  +---> config.py   (user configuration)
 ```
 
 ## Modules
@@ -44,10 +42,6 @@ Wraps yt-dlp to download audio in the best available quality. Handles format sel
 ### `display.py` -- Terminal output
 
 Uses Rich to render search results as formatted tables, show download progress bars, and display track metadata. Supports album art display via `kitten icat` in kitty terminals. Used by CLI subcommands only (TUI has its own rendering).
-
-### `config.py` -- User configuration
-
-Manages user preferences such as default output directory and preferred audio format.
 
 ## Design decisions
 

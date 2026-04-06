@@ -89,26 +89,6 @@ _EXTRACTORS = {
 }
 
 
-def search_songs(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    results = _get_client().search(query, filter="songs", limit=limit)
-    return [_extract_song(r) for r in results]
-
-
-def search_albums(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    results = _get_client().search(query, filter="albums", limit=limit)
-    return [_extract_album(r) for r in results]
-
-
-def search_artists(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    results = _get_client().search(query, filter="artists", limit=limit)
-    return [_extract_artist(r) for r in results]
-
-
-def search_playlists(query: str, limit: int = 10) -> list[dict[str, Any]]:
-    results = _get_client().search(query, filter="community_playlists", limit=limit)
-    return [_extract_playlist(r) for r in results]
-
-
 def search(query: str, result_type: str = "song", limit: int = 10) -> list[dict[str, Any]]:
     yt_filter = _FILTERS.get(result_type, "songs")
     extractor = _EXTRACTORS.get(result_type, _extract_song)

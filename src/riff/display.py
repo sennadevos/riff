@@ -43,31 +43,45 @@ def show_image(url: str, width: int = 40) -> bool:
     """Download and display an image using kitten icat. Returns True if shown."""
     if not _in_kitty() or not _has_kitten():
         return False
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            urlretrieve(url, tmp.name)
-            subprocess.run(
-                ["kitten", "icat", "--align", "left", f"--place={width}x{width}@0x0", tmp.name],
-                check=True,
-            )
-            os.unlink(tmp.name)
+            tmp_path = tmp.name
+            urlretrieve(url, tmp_path)
+        subprocess.run(
+            ["kitten", "icat", "--align", "left", f"--place={width}x{width}@0x0", tmp_path],
+            check=True,
+        )
         return True
-    except Exception:
+    except (OSError, subprocess.CalledProcessError):
         return False
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def show_image_simple(url: str) -> bool:
     """Download and display an image using kitten icat, simple mode."""
     if not _in_kitty() or not _has_kitten():
         return False
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-            urlretrieve(url, tmp.name)
-            subprocess.run(["kitten", "icat", tmp.name], check=True)
-            os.unlink(tmp.name)
+            tmp_path = tmp.name
+            urlretrieve(url, tmp_path)
+        subprocess.run(["kitten", "icat", tmp_path], check=True)
         return True
-    except Exception:
+    except (OSError, subprocess.CalledProcessError):
         return False
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def display_search_results(results: list[dict[str, Any]], result_type: str = "song") -> None:

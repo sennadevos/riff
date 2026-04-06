@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from typing import Any, Callable
 
@@ -58,16 +59,13 @@ def _build_opts(
 
     postprocessors = [*fmt_opts["postprocessors"], {"key": "FFmpegMetadata"}]
 
-    try:
-        import mutagen  # noqa: F401
+    write_thumb = importlib.util.find_spec("mutagen") is not None
+    if write_thumb:
         postprocessors.append({
             "key": "FFmpegThumbnailsConvertor",
             "format": "jpg",
         })
         postprocessors.append({"key": "EmbedThumbnail"})
-        write_thumb = True
-    except ImportError:
-        write_thumb = False
 
     opts: dict[str, Any] = {
         "format": fmt_opts["format"],
