@@ -2,30 +2,34 @@
 
 ## Overview
 
-riff is structured as a CLI with an interactive TUI, built on top of **ytmusicapi** for YouTube Music interaction and **yt-dlp** for audio downloads. The CLI uses **Click** for argument parsing and **Rich** for terminal output. The TUI uses **urwid** for the interactive interface.
+riff is structured as a CLI with an interactive TUI, built on top of **ytmusicapi** for YouTube Music interaction and **yt-dlp** for audio downloads. The CLI uses **Click** for argument parsing and **Rich** for terminal output. The TUI uses **urwid** for the interactive interface. An optional **web** frontend (FastAPI) exposes the same search and download over HTTP.
 
-When called without arguments, riff launches the TUI. Subcommands (`search`, `dl`, `info`) use the traditional CLI path.
+When called without arguments, riff launches the TUI. Subcommands (`search`, `dl`, `info`, `serve`) use the traditional CLI path.
+
+The three frontends (TUI, CLI, web) are thin presentation layers over two shared, framework-agnostic cores: `search.py` and `download.py`. Adding a frontend means wiring those two modules to a new I/O surface — no download or search logic is duplicated.
 
 ```
 User
   |
-  v
-cli.py  (Click command group -- entry point)
+  +-- terminal --> cli.py (Click command group -- entry point)
+  |                  |
+  |                  +-- no args ----> tui/app.py  (urwid -- interactive TUI)
+  |                  +-- `serve` ----> web/app.py  (FastAPI -- HTTP frontend)
+  |                  +-- else -------> display.py   (Rich -- CLI output formatting)
   |
-  +---> tui/app.py  (urwid -- interactive TUI, launched with no args)
-  |       |
-  +---> search.py   (ytmusicapi -- search & metadata)
-  |       |
-  +---> download.py (yt-dlp -- audio downloads)
-  |       |
-  +---> display.py  (Rich -- CLI terminal output formatting)
+  +-- browser ----> web/app.py
+                       |
+       all of the above call into:
+                       |
+                  search.py   (ytmusicapi -- search & metadata)
+                  download.py (yt-dlp -- audio downloads, progress callbacks)
 ```
 
 ## Modules
 
 ### `cli.py` -- Entry point
 
-Click command group with `invoke_without_command=True`. When no subcommand is given, launches the TUI. Subcommands: `search`, `dl` (with hidden `download` alias), `info`.
+Click command group with `invoke_without_command=True`. When no subcommand is given, launches the TUI. Subcommands: `search`, `dl` (with hidden `download` alias), `info`, `serve`. `serve` lazily imports the web dependencies so they stay optional for terminal-only users.
 
 ### `tui/app.py` -- Interactive TUI
 
@@ -42,6 +46,10 @@ Wraps yt-dlp to download audio in the best available quality. Handles format sel
 ### `display.py` -- Terminal output
 
 Uses Rich to render search results as formatted tables, show download progress bars, and display track metadata. Supports album art display via `kitten icat` in kitty terminals. Used by CLI subcommands only (TUI has its own rendering).
+
+### `web/` -- Web frontend (optional)
+
+A single-page FastAPI app served by `riff serve`. `web/app.py` reuses `search.py` and `download.py` unchanged: `GET /api/search` returns results as JSON (including a lazily-loaded cover thumbnail), and `POST /api/download` runs the download in a worker thread, relaying yt-dlp's progress callbacks to the browser as Server-Sent Events. `web/static/index.html` is a dependency-free page (no build step). The download directory is resolved from `$RIFF_MUSIC_DIR` (or `riff serve --music-dir`), defaulting to `~/Music`. Dependencies live behind the `web` extra (`pip install '.[web]'`).
 
 ## Design decisions
 
@@ -68,3 +76,10 @@ Uses Rich to render search results as formatted tables, show download progress b
 ### Kitty album art
 
 Album art in the TUI uses the kitty graphics protocol directly (base64-encoded PNG escape sequences written to `/dev/tty`). This avoids needing the `kitten` binary and works inside toolbox containers. JPEGs from YouTube are converted to PNG via Pillow since the protocol only supports PNG format (`f=100`).
+
+### Why FastAPI + Server-Sent Events
+
+- The web frontend is an *optional* extra, so it must not weigh down the core install — FastAPI/Uvicorn live behind the `web` extra and are imported lazily.
+- A download is long-running with incremental progress, which maps naturally onto Server-Sent Events: a one-way stream from server to browser, no WebSocket handshake or client library needed. The browser reads the stream over the same `fetch` it used to start the download.
+- yt-dlp's blocking work runs in a worker thread while the event loop relays its progress callbacks, keeping the server responsive without rewriting the download path.
+- The page is intentionally a single static HTML file with no build step, mirroring the "no toolchain to fight" spirit of the urwid TUI choice.
