@@ -24,6 +24,14 @@ def _format_duration(seconds: int | None) -> str:
     return f"{m}:{s:02d}"
 
 
+def _thumbnail(item: dict[str, Any]) -> str:
+    """Return the largest thumbnail URL from a search result item, if any."""
+    thumbs = item.get("thumbnails") or []
+    if thumbs and isinstance(thumbs, list):
+        return thumbs[-1].get("url", "")
+    return ""
+
+
 def _extract_song(item: dict[str, Any]) -> dict[str, Any]:
     artists = ", ".join(a["name"] for a in item.get("artists", []) if a.get("name"))
     album = item.get("album", {})
@@ -41,6 +49,7 @@ def _extract_song(item: dict[str, Any]) -> dict[str, Any]:
         "artist": artists,
         "album": album.get("name", "") if isinstance(album, dict) else str(album),
         "duration": _format_duration(duration) if isinstance(duration, int) else str(duration or ""),
+        "thumbnail": _thumbnail(item),
     }
 
 
@@ -71,6 +80,7 @@ def _extract_playlist(item: dict[str, Any]) -> dict[str, Any]:
         "title": item.get("title", ""),
         "author": author,
         "count": item.get("itemCount", ""),
+        "thumbnail": _thumbnail(item),
     }
 
 

@@ -135,6 +135,35 @@ def download_alias(ctx: click.Context, **kwargs: str | tuple[str, ...]) -> None:
 
 
 @main.command()
+@click.option("--host", default="0.0.0.0", show_default=True, help="Address to bind the web server to.")
+@click.option("-p", "--port", default=8080, show_default=True, help="Port to listen on.")
+@click.option(
+    "-m", "--music-dir",
+    default=None,
+    help="Directory downloads are saved to. Defaults to $RIFF_MUSIC_DIR, then ~/Music.",
+)
+def serve(host: str, port: int, music_dir: str | None) -> None:
+    """Serve the one-page web version of riff."""
+    import os
+
+    try:
+        import uvicorn
+    except ImportError:
+        display.print_error(
+            "Web dependencies are not installed. Install them with:\n  pip install 'riff[web]'"
+        )
+        raise SystemExit(1)
+
+    # Only an explicit --music-dir overrides the environment; otherwise honor
+    # RIFF_MUSIC_DIR (set by the container/compose) and fall back to ~/Music.
+    if music_dir is None:
+        music_dir = os.environ.get("RIFF_MUSIC_DIR", "~/Music")
+    os.environ["RIFF_MUSIC_DIR"] = music_dir
+    display.print_success(f"riff web serving on http://{host}:{port}  (downloads -> {music_dir})")
+    uvicorn.run("riff.web.app:app", host=host, port=port, log_level="info")
+
+
+@main.command()
 @click.argument("url_or_id")
 def info(url_or_id: str) -> None:
     """Show detailed info for a track."""

@@ -1,0 +1,11 @@
+.git
+.gitignore
+docs/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+riff.desktop

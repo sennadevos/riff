@@ -17,8 +17,17 @@ dependencies = [
     "pillow>=10.0",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
+
 [project.scripts]
 riff = "riff.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+riff = ["web/static/*"]

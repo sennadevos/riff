@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>riff</title>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #16181f;
+    --panel2: #1c1f28;
+    --text: #e6e7eb;
+    --muted: #8a8f9c;
+    --accent: #7c5cff;
+    --accent2: #00d28f;
+    --err: #ff5c6c;
+    --border: #262a36;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 80px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 22px; }
+  h1 { font-size: 30px; margin: 0; letter-spacing: -0.5px; }
+  h1 .dot { color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; }
+  form { display: flex; gap: 8px; margin-bottom: 14px; }
+  input[type=search] {
+    flex: 1; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    font-size: 15px; outline: none;
+  }
+  input[type=search]:focus { border-color: var(--accent); }
+  button {
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+    padding: 12px 16px; border-radius: 10px; cursor: pointer; font-size: 14px;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .controls { display: flex; gap: 14px; align-items: center; margin-bottom: 22px; flex-wrap: wrap; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button { border: none; border-radius: 0; background: var(--panel); padding: 9px 14px; }
+  .seg button.active { background: var(--accent); color: #fff; }
+  .field { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+  select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 13px;
+  }
+  .results { display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .row .cover {
+    width: 46px; height: 46px; flex: none; border-radius: 6px; object-fit: cover;
+    background: var(--panel2); border: 1px solid var(--border);
+  }
+  .row .cover.placeholder { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 18px; }
+  .row .meta { flex: 1; min-width: 0; }
+  .row .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .artist { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .dur { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .row .state { font-size: 12px; color: var(--accent2); min-width: 0; }
+  .row.done { border-color: var(--accent2); }
+  .row.error { border-color: var(--err); }
+  .row .state.err { color: var(--err); }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  .bar { height: 4px; background: var(--panel2); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; width: 0; background: var(--accent2); transition: width .2s; }
+  footer { margin-top: 40px; color: var(--muted); font-size: 12px; text-align: center; }
+  code { background: var(--panel2); padding: 1px 6px; border-radius: 5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>riff<span class="dot">.</span></h1>
+    <span class="sub">add music to your library</span>
+  </header>
+
+  <form id="searchForm">
+    <input id="q" type="search" placeholder="search YouTube Music…" autocomplete="off" autofocus>
+    <button class="primary" type="submit">Search</button>
+  </form>
+
+  <div class="controls">
+    <div class="seg" id="typeSeg">
+      <button type="button" data-type="song" class="active">Songs</button>
+      <button type="button" data-type="playlist">Playlists</button>
+    </div>
+    <label class="field">format
+      <select id="format">
+        <option value="best">best (opus)</option>
+        <option value="mp3">mp3 320</option>
+        <option value="flac">flac</option>
+        <option value="opus">opus</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="results" id="results">
+    <div class="empty">Search for a song or playlist to get started.</div>
+  </div>
+
+  <footer>Downloads land in your music library and appear in Navidrome after the next scan.</footer>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const results = $("#results");
+let type = "song";
+
+$("#typeSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-type]");
+  if (!b) return;
+  type = b.dataset.type;
+  [...$("#typeSeg").children].forEach((c) => c.classList.toggle("active", c === b));
+});
+
+$("#searchForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const q = $("#q").value.trim();
+  if (!q) return;
+  results.innerHTML = `<div class="empty">Searching…</div>`;
+  let data;
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}&limit=15`);
+    data = await res.json();
+  } catch (err) {
+    results.innerHTML = `<div class="empty">Network error.</div>`;
+    return;
+  }
+  if (data.error) {
+    results.innerHTML = `<div class="empty">Error: ${escapeHtml(data.error)}</div>`;
+    return;
+  }
+  if (!data.length) {
+    results.innerHTML = `<div class="empty">No results.</div>`;
+    return;
+  }
+  results.innerHTML = "";
+  data.forEach((r) => results.appendChild(renderRow(r)));
+});
+
+function renderRow(r) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const isPlaylist = type === "playlist";
+  const title = r.title || "(untitled)";
+  const sub = isPlaylist
+    ? `${r.author || ""}${r.count ? " · " + r.count + " tracks" : ""}`
+    : `${r.artist || ""}${r.album ? " · " + r.album : ""}`;
+  row.innerHTML = `
+    ${r.thumbnail
+      ? `<img class="cover" loading="lazy" decoding="async" src="${escapeHtml(r.thumbnail)}" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover placeholder',textContent:'♪'}))">`
+      : `<div class="cover placeholder">♪</div>`}
+    <div class="meta">
+      <div class="title">${escapeHtml(title)}</div>
+      <div class="artist">${escapeHtml(sub)}</div>
+      <div class="bar" hidden><span></span></div>
+    </div>
+    ${r.duration ? `<div class="dur">${escapeHtml(r.duration)}</div>` : ""}
+    <div class="state"></div>
+    <button class="dl">Download</button>`;
+  const btn = row.querySelector(".dl");
+  btn.addEventListener("click", () => download(r, row, btn, isPlaylist));
+  return row;
+}
+
+async function download(r, row, btn, isPlaylist) {
+  if (!r.url) { setState(row, "no URL", true); return; }
+  btn.disabled = true;
+  const state = row.querySelector(".state");
+  const bar = row.querySelector(".bar");
+  const fill = bar.querySelector("span");
+  row.classList.remove("done", "error");
+  state.classList.remove("err");
+  setState(row, "starting…");
+
+  try {
+    const res = await fetch("/api/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: r.url, format: $("#format").value, playlist: isPlaylist }),
+    });
+    await readSSE(res, (event, data) => {
+      if (event === "progress") {
+        if (data.status === "downloading") {
+          bar.hidden = false;
+          if (data.percent != null) fill.style.width = data.percent + "%";
+          const spd = data.speed ? " · " + fmtSpeed(data.speed) : "";
+          setState(row, (data.percent != null ? data.percent + "%" : "downloading") + spd);
+        } else if (data.status === "finished") {
+          fill.style.width = "100%";
+          setState(row, "converting…");
+        }
+      } else if (event === "done") {
+        row.classList.add("done");
+        setState(row, "✓ saved");
+        bar.hidden = true;
+      } else if (event === "error") {
+        row.classList.add("error");
+        setState(row, data.error || "failed", true);
+        bar.hidden = true;
+      }
+    });
+  } catch (err) {
+    row.classList.add("error");
+    setState(row, "network error", true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Minimal SSE parser over fetch's streaming body (EventSource is GET-only).
+async function readSSE(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const chunk = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let ev = "message", data = "";
+      chunk.split("\n").forEach((line) => {
+        if (line.startsWith("event:")) ev = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      });
+      if (data) { try { onEvent(ev, JSON.parse(data)); } catch (_) {} }
+    }
+  }
+}
+
+function setState(row, text, isErr) {
+  const s = row.querySelector(".state");
+  s.textContent = text;
+  s.classList.toggle("err", !!isErr);
+}
+function fmtSpeed(b) {
+  if (!b) return "";
+  const u = ["B", "KB", "MB", "GB"]; let i = 0;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return b.toFixed(1) + " " + u[i] + "/s";
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+</script>
+</body>
+</html>

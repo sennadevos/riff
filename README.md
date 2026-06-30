@@ -13,6 +13,7 @@ YouTube Music from your terminal.
 - Full playlist support -- download entire playlists in one command
 - Automatic metadata embedding (title, artist, album, cover art)
 - Album art display in kitty terminal (TUI and CLI `info` command)
+- Optional one-page web UI (`riff serve`) for searching and downloading from a browser
 
 ## Installation
 
@@ -51,6 +52,37 @@ riff
 | `Tab` | Cycle result type |
 | `1`-`4` | Switch to songs/albums/artists/playlists |
 | `Ctrl+C` (x2) | Quit |
+
+### Web
+
+riff ships an optional one-page web frontend for searching and downloading from a
+browser — handy for adding music to a watched folder without opening a terminal.
+Install the web extra and run `riff serve`:
+
+```sh
+pip install '.[web]'
+riff serve                                   # http://0.0.0.0:8080, downloads to ~/Music
+riff serve --port 9000 --music-dir /srv/music
+```
+
+Then open the printed URL, search, and click **Download** — covers load lazily, progress
+streams live in the page, and files land in `--music-dir` (override with `$RIFF_MUSIC_DIR`).
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/search?q=&type=song\|playlist&limit=` | Search results as JSON |
+| `POST /api/download` `{url, format, playlist}` | Download, streaming progress as Server-Sent Events |
+| `GET /healthz` | Liveness + resolved download directory |
+
+A `Containerfile` is included to run the web frontend in a container:
+
+```sh
+podman build -t riff-web .
+podman run -p 8080:8080 -v ~/Music:/music:z -e RIFF_MUSIC_DIR=/music riff-web
+```
+
+> The web UI has no authentication and triggers downloads — keep it on a trusted
+> network, not the public internet.
 
 ### Search
 
@@ -113,6 +145,13 @@ cp riff.desktop ~/.local/share/applications/
 | [urwid](https://urwid.org/) | TUI framework |
 | [Pillow](https://python-pillow.org/) | Image conversion for kitty graphics protocol |
 | [mutagen](https://mutagen.readthedocs.io/) | Audio metadata embedding |
+
+Installing the `web` extra (`pip install '.[web]'`) additionally pulls in:
+
+| Package | Purpose |
+|---|---|
+| [FastAPI](https://fastapi.tiangolo.com/) | Web framework for the `riff serve` frontend |
+| [Uvicorn](https://www.uvicorn.org/) | ASGI server that runs the web app |
 
 ## License
 
