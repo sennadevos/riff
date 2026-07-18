@@ -7,7 +7,8 @@ YouTube Music from your terminal.
 ## Features
 
 - Interactive TUI with vim-style navigation (runs when called without arguments)
-- Search songs, albums, artists, and playlists on YouTube Music
+- Search songs, videos, albums, artists, and playlists on YouTube Music
+  (video search surfaces tracks not listed as songs)
 - Download highest quality audio (opus, flac, mp3)
 - Rich terminal output with formatted tables and progress bars
 - Full playlist support -- download entire playlists in one command
@@ -89,6 +90,9 @@ podman run -p 8080:8080 -v ~/Music:/music:z -e RIFF_MUSIC_DIR=/music riff-web
 ```sh
 # Search for a song
 riff search "vini vici adhana"
+
+# Search videos (finds tracks not listed as songs)
+riff search "vini vici adhana" --type video
 
 # Search for artists
 riff search "vini vici" --type artist

@@ -55,7 +55,7 @@ def healthz() -> dict[str, str]:
 def api_search(q: str, type: str = "song", limit: int = 10) -> JSONResponse:
     if not q.strip():
         return JSONResponse([])
-    if type not in ("song", "album", "artist", "playlist"):
+    if type not in ("song", "video", "album", "artist", "playlist"):
         type = "song"
     try:
         results = riff_search.search(q, result_type=type, limit=limit)

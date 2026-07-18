@@ -86,13 +86,18 @@ def _extract_playlist(item: dict[str, Any]) -> dict[str, Any]:
 
 _FILTERS: dict[str, str] = {
     "song": "songs",
+    "video": "videos",
     "album": "albums",
     "artist": "artists",
     "playlist": "community_playlists",
 }
 
 _EXTRACTORS = {
+    # Video results share songs' shape (videoId/title/artists/duration/thumbnails),
+    # just without an album — reuse the song extractor. Videos surface tracks that
+    # YouTube Music doesn't list as songs.
     "song": _extract_song,
+    "video": _extract_song,
     "album": _extract_album,
     "artist": _extract_artist,
     "playlist": _extract_playlist,

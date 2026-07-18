@@ -25,7 +25,7 @@ def main(ctx: click.Context) -> None:
 @click.option(
     "-t", "--type",
     "result_type",
-    type=click.Choice(["song", "album", "artist", "playlist"], case_sensitive=False),
+    type=click.Choice(["song", "video", "album", "artist", "playlist"], case_sensitive=False),
     default="song",
     help="Type of result to search for.",
 )
