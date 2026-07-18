@@ -56,6 +56,8 @@
   .row {
     display: flex; align-items: center; gap: 14px; padding: 12px 14px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    transition: border-color .4s ease, box-shadow .4s ease, background-color .4s ease;
+    animation: riseIn .32s cubic-bezier(.2, .7, .3, 1) both;
   }
   .row .cover {
     width: 46px; height: 46px; flex: none; border-radius: 6px; object-fit: cover;
@@ -66,13 +68,48 @@
   .row .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .artist { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .dur { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-  .row .state { font-size: 12px; color: var(--accent2); min-width: 0; }
-  .row.done { border-color: var(--accent2); }
-  .row.error { border-color: var(--err); }
+  .row .state {
+    font-size: 12px; color: var(--accent2); min-width: 0;
+    transition: color .3s ease;
+  }
+  .row .state.bump { animation: bump .25s ease; }
+  .row.done {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 1px var(--accent2) inset, 0 0 18px -8px var(--accent2);
+    animation: pop .45s ease;
+  }
+  .row.error { border-color: var(--err); animation: shake .4s ease; }
   .row .state.err { color: var(--err); }
   .empty { color: var(--muted); text-align: center; padding: 40px 0; }
-  .bar { height: 4px; background: var(--panel2); border-radius: 2px; margin-top: 8px; overflow: hidden; }
-  .bar > span { display: block; height: 100%; width: 0; background: var(--accent2); transition: width .2s; }
+  .bar {
+    height: 0; opacity: 0; margin-top: 0;
+    background: var(--panel2); border-radius: 2px; overflow: hidden;
+    transition: height .28s ease, opacity .28s ease, margin-top .28s ease;
+  }
+  .bar.show { height: 4px; opacity: 1; margin-top: 8px; }
+  .bar > span {
+    display: block; height: 100%; width: 0; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent2), #46f0b4, var(--accent2));
+    background-size: 200% 100%;
+    transition: width .28s cubic-bezier(.2, .7, .3, 1);
+    animation: shimmer 1.1s linear infinite;
+  }
+  .bar.settle > span { animation: pulse 1.1s ease-in-out infinite; }
+  .bar.complete > span { animation: none; background: var(--accent2); }
+
+  @keyframes riseIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.012); } 100% { transform: scale(1); } }
+  @keyframes bump { from { transform: translateY(-2px); opacity: .4; } to { transform: none; opacity: 1; } }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); } 40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); } 80% { transform: translateX(3px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  }
   footer { margin-top: 40px; color: var(--muted); font-size: 12px; text-align: center; }
   code { background: var(--panel2); padding: 1px 6px; border-radius: 5px; }
 </style>
@@ -164,7 +201,7 @@ function renderRow(r) {
     <div class="meta">
       <div class="title">${escapeHtml(title)}</div>
       <div class="artist">${escapeHtml(sub)}</div>
-      <div class="bar" hidden><span></span></div>
+      <div class="bar"><span></span></div>
     </div>
     ${r.duration ? `<div class="dur">${escapeHtml(r.duration)}</div>` : ""}
     <div class="state"></div>
@@ -181,8 +218,10 @@ async function download(r, row, btn, isPlaylist) {
   const bar = row.querySelector(".bar");
   const fill = bar.querySelector("span");
   row.classList.remove("done", "error");
+  bar.classList.remove("complete", "settle");
   state.classList.remove("err");
-  setState(row, "starting…");
+  fill.style.width = "0%";
+  setState(row, "starting…", false, { bump: true });
 
   try {
     const res = await fetch("/api/download", {
@@ -193,22 +232,26 @@ async function download(r, row, btn, isPlaylist) {
     await readSSE(res, (event, data) => {
       if (event === "progress") {
         if (data.status === "downloading") {
-          bar.hidden = false;
+          bar.classList.add("show");
+          bar.classList.remove("settle");
           if (data.percent != null) fill.style.width = data.percent + "%";
           const spd = data.speed ? " · " + fmtSpeed(data.speed) : "";
           setState(row, (data.percent != null ? data.percent + "%" : "downloading") + spd);
         } else if (data.status === "finished") {
+          bar.classList.add("show", "settle");
           fill.style.width = "100%";
-          setState(row, "converting…");
+          setState(row, "converting…", false, { bump: true });
         }
       } else if (event === "done") {
         row.classList.add("done");
-        setState(row, "✓ saved");
-        bar.hidden = true;
+        bar.classList.add("show", "complete");
+        bar.classList.remove("settle");
+        fill.style.width = "100%";
+        setState(row, "✓ saved", false, { bump: true });
       } else if (event === "error") {
         row.classList.add("error");
-        setState(row, data.error || "failed", true);
-        bar.hidden = true;
+        bar.classList.remove("show", "settle", "complete");
+        setState(row, data.error || "failed", true, { bump: true });
       }
     });
   } catch (err) {
@@ -242,10 +285,15 @@ async function readSSE(res, onEvent) {
   }
 }
 
-function setState(row, text, isErr) {
+function setState(row, text, isErr, opts) {
   const s = row.querySelector(".state");
   s.textContent = text;
   s.classList.toggle("err", !!isErr);
+  if (opts && opts.bump) {
+    s.classList.remove("bump");
+    void s.offsetWidth;   // force reflow so the animation re-fires
+    s.classList.add("bump");
+  }
 }
 function fmtSpeed(b) {
   if (!b) return "";
