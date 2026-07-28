@@ -53,6 +53,8 @@
     border-radius: 8px; padding: 8px 10px; font-size: 13px;
   }
   .results { display: flex; flex-direction: column; gap: 8px; }
+  #scanResults:not(:empty) { margin-top: 18px; }
+  .row.nomatch { opacity: .55; }
   .row {
     display: flex; align-items: center; gap: 14px; padding: 12px 14px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
@@ -158,9 +160,14 @@
   </div>
 
   <div id="libraryPanel" hidden>
+    <div class="controls">
+      <button type="button" id="scanBtn" class="primary">Scan library</button>
+      <span class="field" id="scanHint">Identifies tracks via Shazam. Nothing is changed until you click Apply on a result.</span>
+    </div>
     <div class="results" id="libraryResults">
       <div class="empty">Loading…</div>
     </div>
+    <div class="results" id="scanResults"></div>
   </div>
 
   <footer>Downloads land in your music library and appear in Navidrome after the next scan.</footer>
@@ -181,6 +188,8 @@ $("#mainTabs").addEventListener("click", (e) => {
   $("#libraryPanel").hidden = tab !== "library";
   if (tab === "library") loadLibrary();
 });
+
+$("#scanBtn").addEventListener("click", startScan);
 
 $("#sourceSeg").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-source]");
@@ -384,7 +393,8 @@ async function deleteTrack(t, row, btn) {
   if (!confirm(`Delete "${t.title || t.filename}"? This can't be undone.`)) return;
   btn.disabled = true;
   try {
-    const res = await fetch(`/api/library/${encodeURIComponent(t.filename)}`, { method: "DELETE" });
+    const path = t.filename.split("/").map(encodeURIComponent).join("/");
+    const res = await fetch(`/api/library/${path}`, { method: "DELETE" });
     if (res.status === 204) {
       row.remove();
       return;
@@ -396,6 +406,82 @@ async function deleteTrack(t, row, btn) {
     row.classList.add("error");
     setState(row, "network error", true, { bump: true });
   } finally {
+    btn.disabled = false;
+  }
+}
+
+async function startScan() {
+  const btn = $("#scanBtn");
+  const panel = $("#scanResults");
+  btn.disabled = true;
+  panel.innerHTML = "";
+  try {
+    const res = await fetch("/api/scan", { method: "POST" });
+    await readSSE(res, (event, data) => {
+      if (event === "result") panel.appendChild(renderScanRow(data));
+    });
+  } catch (err) {
+    panel.innerHTML = `<div class="empty">Network error.</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderScanRow(data) {
+  const row = document.createElement("div");
+  const identified = data.identified;
+
+  if (!identified) {
+    row.className = "row nomatch";
+    row.innerHTML = `
+      <div class="cover placeholder">?</div>
+      <div class="meta">
+        <div class="title">${escapeHtml(data.current.title || data.filename)}</div>
+        <div class="artist">no match</div>
+      </div>
+      <div class="state"></div>`;
+    return row;
+  }
+
+  row.className = "row";
+  const sub = [identified.artist, identified.album, identified.year].filter(Boolean).join(" · ");
+  row.innerHTML = `
+    ${identified.cover_art_url
+      ? `<img class="cover" loading="lazy" decoding="async" src="${escapeHtml(identified.cover_art_url)}" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'cover placeholder',textContent:'♪'}))">`
+      : `<div class="cover placeholder">♪</div>`}
+    <div class="meta">
+      <div class="title">${escapeHtml(identified.title)}</div>
+      <div class="artist">${escapeHtml(sub)}</div>
+    </div>
+    <div class="state"></div>
+    <button class="apply">Apply</button>`;
+  const btn = row.querySelector(".apply");
+  btn.addEventListener("click", () => applyScanResult(data, row, btn));
+  return row;
+}
+
+async function applyScanResult(data, row, btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/scan/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: data.filename, ...data.identified }),
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok) {
+      row.classList.add("done");
+      setState(row, "✓ applied", false, { bump: true });
+      btn.remove();
+    } else {
+      row.classList.add("error");
+      setState(row, out.error || "apply failed", true, { bump: true });
+      btn.disabled = false;
+    }
+  } catch (err) {
+    row.classList.add("error");
+    setState(row, "network error", true, { bump: true });
     btn.disabled = false;
   }
 }

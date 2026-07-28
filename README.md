@@ -74,15 +74,24 @@ Two source toggles: **YouTube Music** (songs/videos/playlists, as above) and
 Downloading a SoundCloud URL works the same as any other, since `download_audio`
 just hands the URL to yt-dlp.
 
-A **Library** tab lists what's already in your music directory (title/artist from
-tags, file size) with a **Delete** button — simple view + delete, nothing more.
+A **Library** tab lists what's already in your music directory, recursively (title/artist
+from tags, file size) with a **Delete** button — simple view + delete, nothing more.
+
+The Library tab also has a **Scan** button that identifies every track via Shazam's
+audio recognition (through [shazamio](https://github.com/shazamio/ShazamIO) — no API key
+needed). Scanning is **manually triggered only** and never writes anything by itself: it
+shows each identified title/artist/album/year next to the file's current tags, and only
+applies a fix when you click that result's **Apply** button — one track at a time, so
+your library is never touched without an explicit decision per file.
 
 | Endpoint | Description |
 |---|---|
 | `GET /api/search?q=&type=song\|video\|playlist&source=ytmusic\|soundcloud&limit=` | Search results as JSON |
 | `POST /api/download` `{url, format, playlist}` | Download, streaming progress as Server-Sent Events |
-| `GET /api/library` | List files in the music directory |
-| `DELETE /api/library/{filename}` | Delete a file from the music directory |
+| `GET /api/library` | List files in the music directory (recursive) |
+| `DELETE /api/library/{path}` | Delete a file from the music directory |
+| `POST /api/scan` | Identify every library track via Shazam, streaming results as Server-Sent Events |
+| `POST /api/scan/apply` `{filename, title, artist, album, year, genre, cover_art_url}` | Write tags + embed cover art for one track |
 | `GET /healthz` | Liveness + resolved download directory |
 
 A `Containerfile` is included to run the web frontend in a container:

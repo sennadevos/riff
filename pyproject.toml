@@ -15,12 +15,14 @@ dependencies = [
     "mutagen>=1.47",
     "urwid>=2.6",
     "pillow>=10.0",
+    "requests>=2.28",
 ]
 
 [project.optional-dependencies]
 web = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
+    "shazamio>=0.7",
 ]
 
 [project.scripts]

@@ -1,13 +1,13 @@
 """View and delete files already in the music library.
 
 Deliberately minimal: list what's there and delete a file. No rename, no tag
-editing, no upload. The library is a flat directory (riff's downloads write
-directly into it, no subfolders), so listing is non-recursive.
+editing, no upload. Listing is recursive (an existing personal library commonly
+has subfolders even though riff's own downloads land flat) — ``filename`` is the
+path relative to ``music_dir``, POSIX-style, and doubles as the delete key.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
@@ -38,16 +38,13 @@ def list_tracks(music_dir: str | Path) -> list[dict[str, Any]]:
         return []
 
     tracks = []
-    for entry in os.scandir(base):
-        if not entry.is_file():
-            continue
-        path = Path(entry.path)
-        if path.suffix.lower() not in _AUDIO_EXTS:
+    for path in base.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in _AUDIO_EXTS:
             continue
         title, artist = _read_tags(path)
-        stat = entry.stat()
+        stat = path.stat()
         tracks.append({
-            "filename": path.name,
+            "filename": path.relative_to(base).as_posix(),
             "title": title,
             "artist": artist,
             "size": stat.st_size,
@@ -62,7 +59,7 @@ def delete_track(music_dir: str | Path, filename: str) -> None:
     base = Path(music_dir).expanduser().resolve()
     target = (base / filename).resolve()
 
-    if target.parent != base:
+    if not target.is_relative_to(base):
         raise ValueError("invalid filename")
     if not target.is_file():
         raise FileNotFoundError(filename)

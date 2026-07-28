@@ -20,8 +20,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 
 from riff import download as riff_download
 from riff import library as riff_library
+from riff import recognize as riff_recognize
 from riff import search as riff_search
 from riff import soundcloud as riff_soundcloud
+from riff import tagger as riff_tagger
 
 
 # Where downloads are saved. Point this at whatever folder your music library
@@ -146,7 +148,7 @@ def api_library() -> JSONResponse:
     return JSONResponse(riff_library.list_tracks(MUSIC_DIR))
 
 
-@app.delete("/api/library/{filename}")
+@app.delete("/api/library/{filename:path}")
 def api_library_delete(filename: str) -> Response:
     try:
         riff_library.delete_track(MUSIC_DIR, filename)
@@ -155,3 +157,51 @@ def api_library_delete(filename: str) -> Response:
     except ValueError:
         return JSONResponse({"error": "invalid filename"}, status_code=400)
     return Response(status_code=204)
+
+
+@app.post("/api/scan")
+async def api_scan() -> StreamingResponse:
+    """Identify every library track via Shazam. Never writes anything —
+    see /api/scan/apply. One request per file with a courtesy delay between
+    them, since Shazam rate-limits aggressive scanning."""
+    base = Path(MUSIC_DIR).expanduser().resolve()
+    tracks = riff_library.list_tracks(MUSIC_DIR)
+
+    async def event_stream():
+        for i, t in enumerate(tracks):
+            if i > 0:
+                await asyncio.sleep(1)
+            identified = await riff_recognize.identify(base / t["filename"])
+            yield _sse("result", {
+                "filename": t["filename"],
+                "current": {"title": t["title"], "artist": t["artist"]},
+                "identified": identified,
+            })
+        yield _sse("done", {})
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
+
+
+@app.post("/api/scan/apply")
+async def api_scan_apply(req: Request) -> JSONResponse:
+    """Write tags for one track. The frontend echoes back whatever /api/scan
+    already sent it for this file — no server-side scan-session state needed,
+    same stateless pattern /api/download uses with search results."""
+    body = await req.json()
+    filename = (body.get("filename") or "").strip()
+    if not filename:
+        return JSONResponse({"error": "missing filename"}, status_code=400)
+
+    base = Path(MUSIC_DIR).expanduser().resolve()
+    target = (base / filename).resolve()
+    if not target.is_relative_to(base):
+        return JSONResponse({"error": "invalid filename"}, status_code=400)
+
+    try:
+        riff_tagger.apply_tags(target, body)
+    except FileNotFoundError:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    return JSONResponse({"ok": True})
