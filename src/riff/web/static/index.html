@@ -121,29 +121,46 @@
     <span class="sub">add music to your library</span>
   </header>
 
-  <form id="searchForm">
-    <input id="q" type="search" placeholder="search YouTube Music…" autocomplete="off" autofocus>
-    <button class="primary" type="submit">Search</button>
-  </form>
-
-  <div class="controls">
-    <div class="seg" id="typeSeg">
-      <button type="button" data-type="song" class="active">Songs</button>
-      <button type="button" data-type="video">Videos</button>
-      <button type="button" data-type="playlist">Playlists</button>
-    </div>
-    <label class="field">format
-      <select id="format">
-        <option value="best">best (opus)</option>
-        <option value="mp3">mp3 320</option>
-        <option value="flac">flac</option>
-        <option value="opus">opus</option>
-      </select>
-    </label>
+  <div class="seg" id="mainTabs">
+    <button type="button" data-tab="search" class="active">Search</button>
+    <button type="button" data-tab="library">Library</button>
   </div>
 
-  <div class="results" id="results">
-    <div class="empty">Search for a song or playlist to get started.</div>
+  <div id="searchPanel">
+    <form id="searchForm">
+      <input id="q" type="search" placeholder="search YouTube Music…" autocomplete="off" autofocus>
+      <button class="primary" type="submit">Search</button>
+    </form>
+
+    <div class="controls">
+      <div class="seg" id="sourceSeg">
+        <button type="button" data-source="ytmusic" class="active">YouTube Music</button>
+        <button type="button" data-source="soundcloud">SoundCloud</button>
+      </div>
+      <div class="seg" id="typeSeg">
+        <button type="button" data-type="song" class="active">Songs</button>
+        <button type="button" data-type="video">Videos</button>
+        <button type="button" data-type="playlist">Playlists</button>
+      </div>
+      <label class="field">format
+        <select id="format">
+          <option value="best">best (opus)</option>
+          <option value="mp3">mp3 320</option>
+          <option value="flac">flac</option>
+          <option value="opus">opus</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="results" id="results">
+      <div class="empty">Search for a song or playlist to get started.</div>
+    </div>
+  </div>
+
+  <div id="libraryPanel" hidden>
+    <div class="results" id="libraryResults">
+      <div class="empty">Loading…</div>
+    </div>
   </div>
 
   <footer>Downloads land in your music library and appear in Navidrome after the next scan.</footer>
@@ -153,6 +170,26 @@
 const $ = (s) => document.querySelector(s);
 const results = $("#results");
 let type = "song";
+let source = "ytmusic";
+
+$("#mainTabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (!b) return;
+  const tab = b.dataset.tab;
+  [...$("#mainTabs").children].forEach((c) => c.classList.toggle("active", c === b));
+  $("#searchPanel").hidden = tab !== "search";
+  $("#libraryPanel").hidden = tab !== "library";
+  if (tab === "library") loadLibrary();
+});
+
+$("#sourceSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-source]");
+  if (!b) return;
+  source = b.dataset.source;
+  [...$("#sourceSeg").children].forEach((c) => c.classList.toggle("active", c === b));
+  $("#typeSeg").hidden = source === "soundcloud";
+  $("#q").placeholder = source === "soundcloud" ? "search SoundCloud…" : "search YouTube Music…";
+});
 
 $("#typeSeg").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-type]");
@@ -168,7 +205,7 @@ $("#searchForm").addEventListener("submit", async (e) => {
   results.innerHTML = `<div class="empty">Searching…</div>`;
   let data;
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}&limit=15`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}&limit=15&source=${source}`);
     data = await res.json();
   } catch (err) {
     results.innerHTML = `<div class="empty">Network error.</div>`;
@@ -189,7 +226,7 @@ $("#searchForm").addEventListener("submit", async (e) => {
 function renderRow(r) {
   const row = document.createElement("div");
   row.className = "row";
-  const isPlaylist = type === "playlist";
+  const isPlaylist = source === "ytmusic" && type === "playlist";
   const title = r.title || "(untitled)";
   const sub = isPlaylist
     ? `${r.author || ""}${r.count ? " · " + r.count + " tracks" : ""}`
@@ -305,6 +342,69 @@ function fmtSpeed(b) {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+async function loadLibrary() {
+  const panel = $("#libraryResults");
+  panel.innerHTML = `<div class="empty">Loading…</div>`;
+  let data;
+  try {
+    const res = await fetch("/api/library");
+    data = await res.json();
+  } catch (err) {
+    panel.innerHTML = `<div class="empty">Network error.</div>`;
+    return;
+  }
+  if (!Array.isArray(data) || !data.length) {
+    panel.innerHTML = `<div class="empty">No tracks yet.</div>`;
+    return;
+  }
+  panel.innerHTML = "";
+  data.forEach((t) => panel.appendChild(renderLibraryRow(t)));
+}
+
+function renderLibraryRow(t) {
+  const row = document.createElement("div");
+  row.className = "row";
+  const sub = `${t.artist ? t.artist + " · " : ""}${formatSize(t.size)}`;
+  row.innerHTML = `
+    <div class="cover placeholder">♪</div>
+    <div class="meta">
+      <div class="title">${escapeHtml(t.title || t.filename)}</div>
+      <div class="artist">${escapeHtml(sub)}</div>
+    </div>
+    <div class="state"></div>
+    <button class="del">Delete</button>`;
+  const btn = row.querySelector(".del");
+  btn.addEventListener("click", () => deleteTrack(t, row, btn));
+  return row;
+}
+
+async function deleteTrack(t, row, btn) {
+  if (!confirm(`Delete "${t.title || t.filename}"? This can't be undone.`)) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/library/${encodeURIComponent(t.filename)}`, { method: "DELETE" });
+    if (res.status === 204) {
+      row.remove();
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    row.classList.add("error");
+    setState(row, data.error || "delete failed", true, { bump: true });
+  } catch (err) {
+    row.classList.add("error");
+    setState(row, "network error", true, { bump: true });
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function formatSize(bytes) {
+  if (!bytes) return "0 B";
+  const u = ["B", "KB", "MB", "GB"]; let i = 0; let b = bytes;
+  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return b.toFixed(1) + " " + u[i];
 }
 </script>
 </body>

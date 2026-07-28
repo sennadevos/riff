@@ -16,10 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from riff import download as riff_download
+from riff import library as riff_library
 from riff import search as riff_search
+from riff import soundcloud as riff_soundcloud
 
 
 # Where downloads are saved. Point this at whatever folder your music library
@@ -52,9 +54,17 @@ def healthz() -> dict[str, str]:
 
 
 @app.get("/api/search")
-def api_search(q: str, type: str = "song", limit: int = 10) -> JSONResponse:
+def api_search(q: str, type: str = "song", limit: int = 10, source: str = "ytmusic") -> JSONResponse:
     if not q.strip():
         return JSONResponse([])
+
+    if source == "soundcloud":
+        try:
+            results = riff_soundcloud.search(q, limit=limit)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=502)
+        return JSONResponse(results)
+
     if type not in ("song", "video", "album", "artist", "playlist"):
         type = "song"
     try:
@@ -129,3 +139,19 @@ async def api_download(req: Request) -> StreamingResponse:
 
 def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.get("/api/library")
+def api_library() -> JSONResponse:
+    return JSONResponse(riff_library.list_tracks(MUSIC_DIR))
+
+
+@app.delete("/api/library/{filename}")
+def api_library_delete(filename: str) -> Response:
+    try:
+        riff_library.delete_track(MUSIC_DIR, filename)
+    except FileNotFoundError:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    except ValueError:
+        return JSONResponse({"error": "invalid filename"}, status_code=400)
+    return Response(status_code=204)

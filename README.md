@@ -69,10 +69,20 @@ riff serve --port 9000 --music-dir /srv/music
 Then open the printed URL, search, and click **Download** — covers load lazily, progress
 streams live in the page, and files land in `--music-dir` (override with `$RIFF_MUSIC_DIR`).
 
+Two source toggles: **YouTube Music** (songs/videos/playlists, as above) and
+**SoundCloud** (track search only, via yt-dlp's `scsearch` — no API key needed).
+Downloading a SoundCloud URL works the same as any other, since `download_audio`
+just hands the URL to yt-dlp.
+
+A **Library** tab lists what's already in your music directory (title/artist from
+tags, file size) with a **Delete** button — simple view + delete, nothing more.
+
 | Endpoint | Description |
 |---|---|
-| `GET /api/search?q=&type=song\|playlist&limit=` | Search results as JSON |
+| `GET /api/search?q=&type=song\|video\|playlist&source=ytmusic\|soundcloud&limit=` | Search results as JSON |
 | `POST /api/download` `{url, format, playlist}` | Download, streaming progress as Server-Sent Events |
+| `GET /api/library` | List files in the music directory |
+| `DELETE /api/library/{filename}` | Delete a file from the music directory |
 | `GET /healthz` | Liveness + resolved download directory |
 
 A `Containerfile` is included to run the web frontend in a container:
